@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.v1.ecg import router as ecg_router
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.services.digitizer_service import DigitizerService
 
 
 @asynccontextmanager
@@ -12,18 +13,45 @@ async def lifespan(app: FastAPI):
 
     setup_logging()
 
-    settings.ORIGINALS_DIR.mkdir(parents=True, exist_ok=True)
-    settings.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    settings.SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
-    settings.METADATA_DIR.mkdir(parents=True, exist_ok=True)
+    # Create storage directories
+    settings.ORIGINALS_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    yield
+    settings.PROCESSED_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    settings.SIGNALS_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    settings.METADATA_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    # Start ECG digitizer worker
+    await DigitizerService.start()
+
+    try:
+        yield
+
+    finally:
+        # Stop ECG digitizer worker
+        await DigitizerService.stop()
 
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Backend for ECG image digitization and signal extraction.",
+    description=(
+        "Backend for ECG image digitization "
+        "and signal extraction."
+    ),
     lifespan=lifespan,
 )
 
